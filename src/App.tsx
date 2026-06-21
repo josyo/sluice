@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AppLayout }      from './components/layout/AppLayout'
-import { ScenarioPage }   from './pages/ScenarioPage'
-import { EnvironmentPage} from './pages/EnvironmentPage'
-import { HistoryPage }    from './pages/HistoryPage'
+import  {ScenarioPage}    from './pages/Scenario'
+import  {EnvironmentPage} from './pages/Environment'
+import  {HistoryPage}     from './pages/History'
 
 export default function App() {
   return (

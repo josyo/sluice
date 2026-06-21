@@ -9,9 +9,9 @@ export function AppLayout() {
                     <p>Sluice</p>
                     <p>API Scenario Runner</p>
                 </div>
-                <NavItem to="/Scenarios" icon={<Layers size ={15} />} label="Scenarios" />
+                <NavItem to="/scenarios" icon={<Layers size ={15} />} label="Scenarios" />
                 <NavItem to="/environments" icon={<Globe size ={15} />} label="Environments" />
-                <NavItem to="/History" icon={<History size ={15} />} label="History" />
+                <NavItem to="/history" icon={<History size ={15} />} label="History" />
             </aside>
 
             <main>

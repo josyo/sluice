@@ -9,7 +9,7 @@ export function parseVariables(
 }
 
 // Seperates dot notaion - user.id becomers "user": "id"
-function resolvePath(
+export function resolvePath(
     obj: Record<string, unknown>,
     path: string
 ) : unknown {

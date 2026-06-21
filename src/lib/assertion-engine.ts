@@ -1,15 +1,8 @@
 // src/lib/assertion-engine.ts
 
-import type { Assertion } from '../types'
+import type { Assertion, AssertionResult } from '../types'
 import type { RequestResult } from './request-runner'
 
-// What this file returns per assertion
-export interface AssertionResult {
-  assertion: Assertion
-  passed: boolean
-  actual: unknown   // what was actually in the response — useful for debugging
-  message: string   // human-readable: "body.data.token exists → got 'eyJhbG' ✓"
-}
 
 /**
  * Main function. Pass in the full request result and all assertions for that step.

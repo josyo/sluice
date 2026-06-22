@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useScenarioStore }    from '../stores/scenario.store'
 import { useEnvironmentStore } from '../stores/environment.store'
 import { useHistoryStore }     from '../stores/history.store'
@@ -10,51 +10,49 @@ import type { StepResult, RunResult } from '../types'
 type RunStatus = 'idle' | 'running' | 'done' | 'cancelled'
 
 interface RunnerState {
-  status:            RunStatus
-  currentStepIndex:  number | null   // which step is actively executing
-  results:           StepResult[]    // results collected so far (updates live)
-  lastRun:           RunResult | null
+  status:           RunStatus
+  currentStepIndex: number | null
+  results:          StepResult[]
+  lastRun:          RunResult | null
+}
+
+const INITIAL_STATE: RunnerState = {
+  status:           'idle',
+  currentStepIndex: null,
+  results:          [],
+  lastRun:          null,
 }
 
 export function useRunner() {
-  const [state, setState] = useState<RunnerState>({
-    status:           'idle',
-    currentStepIndex: null,
-    results:          [],
-    lastRun:          null,
-  })
-
-  // AbortController ref so we can cancel mid-run without stale closures
+  const [state, setState] = useState<RunnerState>(INITIAL_STATE)
   const abortRef = useRef<AbortController | null>(null)
 
   const getActiveScenario  = useScenarioStore(s => s.getActiveScenario)
   const getActiveVariables = useEnvironmentStore(s => s.getActiveVariables)
   const addRun             = useHistoryStore(s => s.addRun)
 
-  const runScenario = async () => {
+  // ── clearResults ────────────────────────────────────────────────────────────
+  // Called by ScenarioPage when switching scenarios so stale results never show
+  const clearResults = useCallback(() => {
+    setState(INITIAL_STATE)
+  }, [])
+
+  // ── runScenario ─────────────────────────────────────────────────────────────
+  const runScenario = useCallback(async () => {
     const scenario = getActiveScenario()
     if (!scenario || scenario.steps.length === 0) return
 
-    // Fresh abort controller for this run
+    // Fresh controller for this run
     abortRef.current = new AbortController()
 
-    setState({
-      status:           'running',
-      currentStepIndex: 0,
-      results:          [],
-      lastRun:          null,
-    })
+    setState({ status: 'running', currentStepIndex: 0, results: [], lastRun: null })
 
-    // Runtime variables start as a copy of the active environment.
-    // This object grows as each step extracts values from its response.
-    // Step 1 might extract an auth token, Step 2 can then use it.
+    // Start with env variables; grows as each step's extractors fire
     const runtimeVars: Record<string, string> = { ...getActiveVariables() }
-
     const stepResults: StepResult[] = []
     const runStart = performance.now()
 
     for (let i = 0; i < scenario.steps.length; i++) {
-      // Check if the user cancelled before starting the next step
       if (abortRef.current.signal.aborted) {
         setState(prev => ({ ...prev, status: 'cancelled', currentStepIndex: null }))
         return
@@ -64,14 +62,10 @@ export function useRunner() {
 
       const step = scenario.steps[i]
 
-      // ── 1. Fire the request ──────────────────────────────────────────────
-      // runtimeVars contains env variables + anything extracted so far
-      const requestResult = await runRequest(step, runtimeVars)
-
-      // ── 2. Evaluate assertions ───────────────────────────────────────────
+      // Pass the signal so fetch() actually cancels when Stop is clicked
+      const requestResult    = await runRequest(step, runtimeVars, abortRef.current.signal)
       const assertionResults = evaluateAssertions(requestResult, step.assertions)
 
-      // ── 3. Build the step result ─────────────────────────────────────────
       const stepResult: StepResult = {
         stepId:           step.id,
         stepName:         step.name,
@@ -88,11 +82,7 @@ export function useRunner() {
 
       stepResults.push(stepResult)
 
-      // ── 4. Extract variables for downstream steps ────────────────────────
-      // Each step can declare extractors like:
-      //   { variableName: "authToken", path: "data.token" }
-      // We drill into the response body, pull the value, and add it to
-      // runtimeVars so Step 2, 3, etc. can reference {{authToken}}
+      // Extract variables from this response for downstream steps
       for (const extractor of step.extractors) {
         const extracted = resolvePath(requestResult.body, extractor.path)
         if (extracted !== undefined && extracted !== null) {
@@ -100,11 +90,10 @@ export function useRunner() {
         }
       }
 
-      // ── 5. Push results live so the UI updates as each step finishes ─────
+      // Update results live so the UI reflects each step as it completes
       setState(prev => ({ ...prev, results: [...stepResults] }))
     }
 
-    // ── Build the final run record and save it ───────────────────────────────
     const runResult: RunResult = {
       id:            crypto.randomUUID(),
       scenarioId:    scenario.id,
@@ -116,46 +105,58 @@ export function useRunner() {
     }
 
     addRun(runResult)
+    setState({ status: 'done', currentStepIndex: null, results: stepResults, lastRun: runResult })
+  }, [getActiveScenario, getActiveVariables, addRun])
 
-    setState({
-      status:           'done',
-      currentStepIndex: null,
-      results:          stepResults,
-      lastRun:          runResult,
-    })
-  }
-
-  const cancelRun = () => {
+  // ── cancelRun ───────────────────────────────────────────────────────────────
+  // Aborts the controller — fetch() receives the signal and throws AbortError,
+  // which request-runner catches and returns as a clean "Cancelled" result
+  const cancelRun = useCallback(() => {
     abortRef.current?.abort()
-    // State update happens inside runScenario when it detects the abort
-  }
+  }, [])
 
-  // Run a single step in isolation — useful when building a scenario and
-  // you want to test one step without running the whole chain
-  const runSingleStep = async (stepId: string): Promise<StepResult | null> => {
+  // ── runSingleStep ────────────────────────────────────────────────────────────
+  // Runs one step in isolation. Updates the results array so StepCard shows feedback.
+  const runSingleStep = useCallback(async (stepId: string): Promise<StepResult | null> => {
     const scenario = getActiveScenario()
     if (!scenario) return null
 
-    const step = scenario.steps.find(s => s.id === stepId)
+    const step      = scenario.steps.find(s => s.id === stepId)
+    const stepIndex = scenario.steps.findIndex(s => s.id === stepId)
     if (!step) return null
 
-    const requestResult  = await runRequest(step, getActiveVariables())
+    // Show this step as actively running
+    setState(prev => ({ ...prev, status: 'running', currentStepIndex: stepIndex }))
+
+    const requestResult    = await runRequest(step, getActiveVariables())
     const assertionResults = evaluateAssertions(requestResult, step.assertions)
 
-    return {
-      stepId:        step.id,
-      stepName:      step.name,
-      status:        requestResult.status,
-      statusText:    requestResult.statusText,
-      duration:      requestResult.duration,
-      body:          requestResult.body,
-      headers:       requestResult.headers,
-      ok:            requestResult.ok,
-      error:         requestResult.error,
-      passed:        assertionResults.every(r => r.passed),
+    const stepResult: StepResult = {
+      stepId:           step.id,
+      stepName:         step.name,
+      status:           requestResult.status,
+      statusText:       requestResult.statusText,
+      duration:         requestResult.duration,
+      body:             requestResult.body,
+      headers:          requestResult.headers,
+      ok:               requestResult.ok,
+      error:            requestResult.error,
+      passed:           assertionResults.every(r => r.passed),
       assertionResults,
     }
-  }
+
+    // Replace if a result already exists for this step, otherwise append
+    setState(prev => ({
+      ...prev,
+      status:           'done',
+      currentStepIndex: null,
+      results: prev.results.some(r => r.stepId === stepId)
+        ? prev.results.map(r => r.stepId === stepId ? stepResult : r)
+        : [...prev.results, stepResult],
+    }))
+
+    return stepResult
+  }, [getActiveScenario, getActiveVariables])
 
   return {
     ...state,
@@ -163,5 +164,6 @@ export function useRunner() {
     runScenario,
     cancelRun,
     runSingleStep,
+    clearResults,
   }
 }

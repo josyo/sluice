@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
-} from '../ui/dialog'
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button }   from '@/components/ui/button'
 import { Input }    from '@/components/ui/input'
 import { Label }    from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
 import type { RequestStep, Assertion, Extractor, HttpMethod } from '../../types'
@@ -28,7 +28,6 @@ export function StepForm({ open, onClose, onSave, initial }: Props) {
   const [url,    setUrl]    = useState(initial?.url    ?? '')
   const [body,   setBody]   = useState(initial?.body   ?? '')
 
-  // Store headers as [{key, value}] for easy row rendering, convert to object on save
   const [headers, setHeaders] = useState<{ key: string; value: string }[]>(
     Object.entries(initial?.headers ?? {}).map(([key, value]) => ({ key, value }))
   )
@@ -44,35 +43,31 @@ export function StepForm({ open, onClose, onSave, initial }: Props) {
       headers: Object.fromEntries(
         headers.filter(h => h.key.trim()).map(h => [h.key.trim(), h.value])
       ),
-      body: body.trim() || undefined,
+      body:       body.trim() || undefined,
       assertions,
       extractors,
     })
     onClose()
   }
 
-  // ── Header helpers ────────────────────────────────────────────────────────
+  // Header helpers
   const addHeader    = () => setHeaders(p => [...p, { key: '', value: '' }])
   const updateHeader = (i: number, field: 'key' | 'value', val: string) =>
     setHeaders(p => p.map((h, idx) => idx === i ? { ...h, [field]: val } : h))
-  const removeHeader = (i: number) =>
-    setHeaders(p => p.filter((_, idx) => idx !== i))
+  const removeHeader = (i: number) => setHeaders(p => p.filter((_, idx) => idx !== i))
 
-  // ── Assertion helpers ─────────────────────────────────────────────────────
+  // Assertion helpers
   const addAssertion    = () =>
     setAssertions(p => [...p, { target: 'status', operator: 'eq', expected: '200' }])
   const updateAssertion = (i: number, u: Partial<Assertion>) =>
     setAssertions(p => p.map((a, idx) => idx === i ? { ...a, ...u } : a))
-  const removeAssertion = (i: number) =>
-    setAssertions(p => p.filter((_, idx) => idx !== i))
+  const removeAssertion = (i: number) => setAssertions(p => p.filter((_, idx) => idx !== i))
 
-  // ── Extractor helpers ─────────────────────────────────────────────────────
-  const addExtractor    = () =>
-    setExtractors(p => [...p, { variableName: '', path: '' }])
+  // Extractor helpers
+  const addExtractor    = () => setExtractors(p => [...p, { variableName: '', path: '' }])
   const updateExtractor = (i: number, u: Partial<Extractor>) =>
     setExtractors(p => p.map((e, idx) => idx === i ? { ...e, ...u } : e))
-  const removeExtractor = (i: number) =>
-    setExtractors(p => p.filter((_, idx) => idx !== i))
+  const removeExtractor = (i: number) => setExtractors(p => p.filter((_, idx) => idx !== i))
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -82,22 +77,17 @@ export function StepForm({ open, onClose, onSave, initial }: Props) {
         </DialogHeader>
 
         <div className="flex flex-col gap-4 overflow-y-auto pr-1">
+
           {/* Name */}
           <div className="space-y-1.5">
             <Label>Step name</Label>
-            <Input
-              placeholder="e.g. Login"
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
+            <Input placeholder="e.g. Login" value={name} onChange={e => setName(e.target.value)} />
           </div>
 
           {/* Method + URL */}
           <div className="flex gap-2">
             <Select value={method} onValueChange={v => setMethod(v as HttpMethod)}>
-              <SelectTrigger className="w-28 shrink-0">
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger className="w-28 shrink-0"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
               </SelectContent>
@@ -114,14 +104,14 @@ export function StepForm({ open, onClose, onSave, initial }: Props) {
           <Tabs defaultValue="headers">
             <TabsList>
               <TabsTrigger value="headers">
-                Headers {headers.length > 0 && `(${headers.length})`}
+                Headers{headers.length > 0 ? ` (${headers.length})` : ''}
               </TabsTrigger>
               <TabsTrigger value="body">Body</TabsTrigger>
               <TabsTrigger value="assertions">
-                Assertions {assertions.length > 0 && `(${assertions.length})`}
+                Assertions{assertions.length > 0 ? ` (${assertions.length})` : ''}
               </TabsTrigger>
               <TabsTrigger value="extractors">
-                Extractors {extractors.length > 0 && `(${extractors.length})`}
+                Extractors{extractors.length > 0 ? ` (${extractors.length})` : ''}
               </TabsTrigger>
             </TabsList>
 
@@ -147,7 +137,7 @@ export function StepForm({ open, onClose, onSave, initial }: Props) {
                 </div>
               ))}
               <Button variant="outline" size="sm" onClick={addHeader}>
-                <Plus size={14} className="mr-1" /> Add Header
+                <Plus size={14} className="mr-1" />Add Header
               </Button>
             </TabsContent>
 
@@ -159,20 +149,20 @@ export function StepForm({ open, onClose, onSave, initial }: Props) {
                 onChange={e => setBody(e.target.value)}
                 className="font-mono text-sm min-h-36 resize-none"
               />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                JSON bodies get <code className="bg-muted px-1 rounded">Content-Type: application/json</code> added automatically.
+              </p>
             </TabsContent>
 
             {/* ── Assertions ── */}
             <TabsContent value="assertions" className="space-y-2 pt-3">
               {assertions.map((a, i) => (
                 <div key={i} className="flex gap-2 items-center flex-wrap">
-                  {/* Target */}
                   <Select
                     value={a.target}
                     onValueChange={v => updateAssertion(i, { target: v as Assertion['target'], path: undefined })}
                   >
-                    <SelectTrigger className="w-24">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="status">status</SelectItem>
                       <SelectItem value="body">body</SelectItem>
@@ -180,7 +170,6 @@ export function StepForm({ open, onClose, onSave, initial }: Props) {
                     </SelectContent>
                   </Select>
 
-                  {/* Path — only for body/header */}
                   {a.target !== 'status' && (
                     <Input
                       placeholder="path.to.value"
@@ -190,14 +179,11 @@ export function StepForm({ open, onClose, onSave, initial }: Props) {
                     />
                   )}
 
-                  {/* Operator */}
                   <Select
                     value={a.operator}
                     onValueChange={v => updateAssertion(i, { operator: v as Assertion['operator'] })}
                   >
-                    <SelectTrigger className="w-28">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {(['eq', 'neq', 'exists', 'contains', 'gt', 'lt'] as const).map(op => (
                         <SelectItem key={op} value={op}>{op}</SelectItem>
@@ -205,7 +191,6 @@ export function StepForm({ open, onClose, onSave, initial }: Props) {
                     </SelectContent>
                   </Select>
 
-                  {/* Expected — hidden for 'exists' */}
                   {a.operator !== 'exists' && (
                     <Input
                       placeholder="expected value"
@@ -221,14 +206,15 @@ export function StepForm({ open, onClose, onSave, initial }: Props) {
                 </div>
               ))}
               <Button variant="outline" size="sm" onClick={addAssertion}>
-                <Plus size={14} className="mr-1" /> Add Assertion
+                <Plus size={14} className="mr-1" />Add Assertion
               </Button>
             </TabsContent>
 
             {/* ── Extractors ── */}
             <TabsContent value="extractors" className="space-y-2 pt-3">
               <p className="text-xs text-muted-foreground">
-                Pull values from this response into a variable for later steps to use as {`{{variableName}}`}
+                Pull values from this response into a variable. Later steps can reference it as{' '}
+                <code className="bg-muted px-1 rounded font-mono">{'{{variableName}}'}</code>
               </p>
               {extractors.map((e, i) => (
                 <div key={i} className="flex gap-2 items-center">
@@ -251,7 +237,7 @@ export function StepForm({ open, onClose, onSave, initial }: Props) {
                 </div>
               ))}
               <Button variant="outline" size="sm" onClick={addExtractor}>
-                <Plus size={14} className="mr-1" /> Add Extractor
+                <Plus size={14} className="mr-1" />Add Extractor
               </Button>
             </TabsContent>
           </Tabs>
